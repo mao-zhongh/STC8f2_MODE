@@ -1,0 +1,511 @@
+C51 COMPILER V9.60.0.0   LENSDRV                                                           10/13/2020 20:08:45 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE LENSDRV
+OBJECT MODULE PLACED IN .\Objects\Lensdrv.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE Lensdrv.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\L
+                    -ensdrv.lst) TABS(2) OBJECT(.\Objects\Lensdrv.obj)
+
+line level    source
+
+   1          /*********************************************************************************************************
+             -*******
+   2          File :  Lensdrv.c
+   3          Function   :  Lens Driver Ctrl For AN41908A
+   4          Made by  :  2011/10/12  PSISZ DC
+   5          Description  :
+   6          Env : Keil51 C Compiler
+   7          Copyright:  MATSUSHITA ELECTRIC INDUSTRIAL CO.,LTD.
+   8          **********************************************************************************************************
+             -******/
+   9          #include <intrins.h>
+  10          #include <math.h>
+  11          #include <stdarg.h>
+  12          #include "Lensdrv.h"
+  13          #include "spi.h"
+  14          #include "stc8.h"
+  15          
+  16          #include "uart.h"
+  17          
+  18          #define VD_FZ_Low()     do{P34 = 0;}while(0)
+  19          #define VD_FZ_Hihg()    do{P34 = 1;}while(0)
+  20          
+  21          #define VD_IS_Low()     do{P35 = 0;}while(0)
+  22          #define VD_IS_Hihg()    do{P35 = 1;}while(0)
+  23          
+  24          
+  25          
+  26          //#define LENS_SUNNY 1
+  27          
+  28          
+  29          #if 1
+  30          #define LENSDRV_FOCUS_STEPS_REG  0x24 //define AB motor to Focus
+  31          #define LENSDRV_ZOOM_STEPS_REG  0x29   //define CD motor to Zoom
+  32          
+  33          #else
+              #define LENSDRV_FOCUS_STEPS_REG   0x29 //define AB motor to Focus
+              #define LENSDRV_ZOOM_STEPS_REG  0x24   //define CD motor to Zoom
+              #endif
+  37          
+  38          
+  39          void LensdrvDelay20us()
+  40          {
+  41   1        unsigned char xdata i;
+  42   1      
+  43   1        i = 158;
+  44   1        while (--i);
+  45   1      
+  46   1      }
+  47          
+  48          /****************************************************************************
+  49          * Ãû³Æ:void VD_FZ(void)
+  50          * ¹¦ÄÜ:²úÉúVDÐÅºÅ
+  51          * Èë¿Ú²ÎÊý: ÎÞ
+  52          * ³ö¿Ú²ÎÊý:ÎÞ
+C51 COMPILER V9.60.0.0   LENSDRV                                                           10/13/2020 20:08:45 PAGE 2   
+
+  53          * ËµÃ÷:
+  54          * µ÷ÓÃ·½·¨:
+  55          ****************************************************************************/  
+  56          void DO_VD_FZ(void)
+  57          {
+  58   1      
+  59   1        VD_FZ_Hihg();
+  60   1        LensdrvDelay20us();
+  61   1        VD_FZ_Low();
+  62   1      }
+  63          
+  64          
+  65          
+  66          /***********************************************************************
+  67          #ifdef  DOC
+  68          FUNCTION  : LensDrvInit
+  69          DESCRIPTION : Initial Lens Driver's registor
+  70          INPUT   : none
+  71          OUTPUT    : none
+  72          UPDATE    :
+  73          DATE    : 2011/02/21
+  74          #endif
+  75          ***********************************************************************/
+  76          void LensDrvInit( void )
+  77          {
+  78   1      
+  79   1        Spi_Write(0x0b,0x0080);   //      Ê¹ÄÜ TESTEN1 
+  80   1        Spi_Write(0x0b,0x0080);   //      Ê¹ÄÜ TESTEN1 
+  81   1        
+  82   1        Spi_Write(0x20,0x1e03);  //Éè¶¨ÆµÂÊÎª    DT1ÑÓÊ±ÉèÎª 3ms
+  83   1        Spi_Write(0x22,0x0001);  //DT2ÑÓÊ±ÉèÎª 0.6ms
+  84   1        Spi_Write(0x23,0xd8d8);  //ÉèÖÃABÕ¼¿Õ±ÈÎª 90%
+  85   1        Spi_Write(0x24,0x0d20);  //AB 256Ï¸·Ö Éè¶¨µçÁ÷·½Ïò
+  86   1        Spi_Write(0x25,0x07ff);  //ÉèÖÃSTEPÎª3.64ms
+  87   1        Spi_Write(0x27,0x0002);  //DT2ÑÓÊ±ÉèÎª 0.6ms
+  88   1        Spi_Write(0x28,0xd8d8);  //ÉèÖÃCDÕ¼¿Õ±ÈÎª 90%
+  89   1        Spi_Write(0x29,0x0520);  //AB 256Ï¸·Ö Éè¶¨µçÁ÷·½Ïò
+  90   1        Spi_Write(0x2a,0x07ff);  //ÉèÖÃSTEPÎª3.64ms
+  91   1        
+  92   1        Spi_Write(0x21,0x0087);   //      °ÑÐÅºÅÒýµ¼PLS1¡¢PLS2    
+  93   1      //  Spi_Write(0x00,0x0000);
+  94   1      //  Spi_Write(0x01,0x0000);
+  95   1      //  Spi_Write(0x03,0x0200);
+  96   1      //  Spi_Write(0x08,0x000f);
+  97   1      //  Spi_Write(0x09,0x8001);
+  98   1      //  Spi_Write(0x0a,0x070c);    //TGT_IN_TEST[9] = 0,µçÁ÷·½ÏòÎªOUTE2 -> OUTE1    £¬TGT_IN_TEST[9] = 1,µçÁ÷·½
+             -ÏòÎªOUTE1 -> OUTE2
+  99   1      //  Spi_Write(0x0b,0x0400);
+ 100   1        
+ 101   1        Spi_Write(0x2C,0x0005);   //´ò¿ªEÍ¨µÀ
+ 102   1        
+ 103   1        LensDrvFocusZoomInit();
+ 104   1        LensDrvIrisInit();
+ 105   1      }
+ 106          
+ 107          
+ 108          /***********************************************************************
+ 109          #ifdef  DOC
+ 110          FUNCTION  : LensDrvSPIWriteUint
+ 111          DESCRIPTION : write Lens driver's registor  ±àÐ´¾µÍ·Çý¶¯³ÌÐòµÄ¼Ä´æÆ÷
+ 112          INPUT   : addr,wt_data
+ 113          OUTPUT    : none
+C51 COMPILER V9.60.0.0   LENSDRV                                                           10/13/2020 20:08:45 PAGE 3   
+
+ 114          UPDATE    :
+ 115          DATE    : 2011/02/21
+ 116          #endif
+ 117          ***********************************************************************/
+ 118          //                                      0x2A               0X0C00 
+ 119          void LensDrvSPIWriteUint( unsigned char addr, unsigned int wt_data )
+ 120          {//                     LensDrvSPIWriteUint(0x24,0x0000);
+ 121   1      
+ 122   1        CS_Hihg();
+ 123   1        SPI_SendByte(addr);
+ 124   1        SPI_SendByte (wt_data%256);
+ 125   1        SPI_SendByte(wt_data/256);
+ 126   1        CS_Low();
+ 127   1      
+ 128   1      }
+ 129          
+ 130          /***********************************************************************
+ 131          #ifdef  DOC
+ 132          FUNCTION  : LensDrvSPIReadUint
+ 133          DESCRIPTION : Read the value of Lens driver's registor   ¶ÁÈ¡¾µÍ·Çý¶¯³ÌÐò¼Ä´æÆ÷µÄÖµ
+ 134          INPUT   : addr
+ 135          OUTPUT    : value of Lens driver's registor(addr)
+ 136          UPDATE    :
+ 137          DATE    : 2011/02/21
+ 138          #endif
+ 139          ***********************************************************************/
+ 140          //                                             0x29
+ 141          unsigned int LensDrvSPIReadUint( unsigned char addr )                                               //Í¨¹ýspi·¢ËÍ1×Ö½ÚÊý¾Ý¸ø¾µÍ·µ
+             -ÄÇý¶¯Ð¾Æ¬, ²¢·µ»Ø1×Ö½ÚÊý¾Ý
+ 142          {
+ 143   1      
+ 144   1        unsigned int temp = 0;
+ 145   1        CS_Hihg();
+ 146   1        SPI_SendByte(0x40|addr);                                                         
+ 147   1        temp|=SPI_SendByte(0xFF)<<8;  
+ 148   1        temp|=SPI_SendByte(0xFF);  
+ 149   1        CS_Low();
+ 150   1        return temp;
+ 151   1      }
+ 152          
+ 153          
+ 154          /***********************************************************************
+ 155          #ifdef  DOC
+ 156          FUNCTION  : LensDrvFocusZoomInit
+ 157          DESCRIPTION : Initial Focus&Zoom stepping motor potion
+ 158          INPUT   : none
+ 159          OUTPUT    : none
+ 160          UPDATE    :
+ 161          DATE    : 2011/02/21
+ 162          #endif
+ 163          ***********************************************************************/
+ 164          void LensDrvFocusZoomInit( void )
+ 165          {
+ 166   1      
+ 167   1      #if LENS_SUNNY //Zoom use AB chanel
+*** WARNING C322 IN LINE 167 OF Lensdrv.c: unknown identifier
+                LensDrvSPIWriteUint(0x20,0x5c0a);  /*DT1=3.03ms PWM=30.1kHz*/
+                LensDrvSPIWriteUint(0x21,0x0000);
+                LensDrvSPIWriteUint(0x22,0x0003);  /* DT2A=0.91ms  AB phase 90 degree */
+                LensDrvSPIWriteUint(0x23,0xC8C8);  /* PWMA PWMB max duty 0.89 */
+                LensDrvSPIWriteUint(0x24,0x0400); //  
+                LensDrvSPIWriteUint(0x25,0x0502);//
+C51 COMPILER V9.60.0.0   LENSDRV                                                           10/13/2020 20:08:45 PAGE 4   
+
+              #else 
+ 175   1        LensDrvSPIWriteUint(0x20,0x5c0a);
+ 176   1        LensDrvSPIWriteUint(0x21,0x0000);
+ 177   1        
+ 178   1        LensDrvSPIWriteUint(0x22,0x1603);
+ 179   1        LensDrvSPIWriteUint(0x23,0xC8C8);
+ 180   1        LensDrvSPIWriteUint(0x24,0x0400); //¾Û½¹µç»ú
+ 181   1        LensDrvSPIWriteUint(0x25,0xFFFF);//0x0160   //×îÐ¡Îª0xFFFF
+ 182   1        
+ 183   1       #endif
+ 184   1      
+ 185   1        LensDrvSPIWriteUint(0x27,0x1603); 
+ 186   1        LensDrvSPIWriteUint(0x28,0xC8C8);
+ 187   1        LensDrvSPIWriteUint(0x29,0x0400); //±ä±¶µç»ú
+ 188   1        LensDrvSPIWriteUint(0x2A,0x0FFF); //0x0400   //×îÐ¡Îª0xFFFF
+ 189   1        
+ 190   1      }
+ 191          
+ 192          /***********************************************************************
+ 193          #ifdef  DOC
+ 194          FUNCTION  : LensDrvIrisInit
+ 195          DESCRIPTION : Initial Iris potion
+ 196          INPUT   : none
+ 197          OUTPUT    : none
+ 198          UPDATE    :
+ 199          DATE    : 2011/02/21
+ 200          #endif
+ 201          ***********************************************************************/
+ 202          void LensDrvIrisInit( void )
+ 203          {
+ 204   1      #if LENS_SUNNY
+*** WARNING C322 IN LINE 204 OF Lensdrv.c: unknown identifier
+                LensDrvSPIWriteUint(0x00,0x0000);  //Set Iris Target
+                LensDrvSPIWriteUint(0x01,0x808A);  
+                LensDrvSPIWriteUint(0x02,0x66F0);
+                LensDrvSPIWriteUint(0x03,0x0E10);
+                LensDrvSPIWriteUint(0x04,0x7E20);
+                LensDrvSPIWriteUint(0x05,0x0A04);
+                LensDrvSPIWriteUint(0x0A,0x0000);
+                LensDrvSPIWriteUint(0x0B,0x0400);
+                LensDrvSPIWriteUint(0x0E,0x0C00);
+              
+              #else
+ 216   1        LensDrvSPIWriteUint(0x00,0x0000);  //Set Iris Target
+ 217   1        LensDrvSPIWriteUint(0x01,0x6600);  
+ 218   1        LensDrvSPIWriteUint(0x02,0x5400);
+ 219   1        LensDrvSPIWriteUint(0x03,0x0E10);
+ 220   1        LensDrvSPIWriteUint(0x04,0x8437);
+ 221   1        LensDrvSPIWriteUint(0x05,0x0104);
+ 222   1        LensDrvSPIWriteUint(0x0A,0x0042);
+ 223   1        LensDrvSPIWriteUint(0x0B,0x0400);
+ 224   1        LensDrvSPIWriteUint(0x0E,0x0D00);
+ 225   1      #endif
+ 226   1      }
+ 227          
+ 228          /***********************************************************************
+ 229          #ifdef  DOC
+ 230          FUNCTION  : LensDrvIrisMove
+ 231          DESCRIPTION : Iris move control
+ 232          INPUT   : IrsTGT
+ 233          OUTPUT    : none
+ 234          UPDATE    :
+C51 COMPILER V9.60.0.0   LENSDRV                                                           10/13/2020 20:08:45 PAGE 5   
+
+ 235          DATE    : 2011/02/21
+ 236          #endif
+ 237          ***********************************************************************/
+ 238          //after implement this function,there should be VD_IS pluse. 
+ 239          void LensDrvIrisMove(unsigned int  IrsTGT)
+ 240          {
+ 241   1        //IrsTGT range:0x0000~0x03FF
+ 242   1        if ( IrsTGT> 0x03ff )
+ 243   1        {
+ 244   2          return ;
+ 245   2        }
+ 246   1        
+ 247   1        LensDrvSPIWriteUint(0x00,IrsTGT);  //Set Iris Target
+ 248   1      #if 1 //output a VD_IS pluse
+ 249   1        VD_IS_Hihg();
+ 250   1        LensdrvDelay20us();
+ 251   1        VD_IS_Low();
+ 252   1      #endif 
+ 253   1      }
+ 254          
+ 255          
+ 256          
+ 257          //Ô¤·À¶ª²½
+ 258          void LensDrvLostStepCorrect(bit dir, int motor)
+ 259          {
+ 260   1        xdata unsigned int backup_data = 0;
+ 261   1      
+ 262   1        //Focus
+ 263   1        if(motor == 1)
+ 264   1        { 
+ 265   2          backup_data = LensDrvSPIReadUint( LENSDRV_FOCUS_STEPS_REG );
+ 266   2          backup_data &=  0x0C00; //0xFE00;
+ 267   2      
+ 268   2          if ( dir == 1)
+ 269   2          {  
+ 270   3              //Add directiion bit (CCWCWAB) to registor:0x24
+ 271   3            backup_data |=0x0100;
+ 272   3            LensDrvSPIWriteUint( LENSDRV_FOCUS_STEPS_REG,backup_data);
+ 273   3          } 
+ 274   2          else
+ 275   2          {
+ 276   3            LensDrvSPIWriteUint( LENSDRV_FOCUS_STEPS_REG,backup_data);
+ 277   3          }
+ 278   2        }
+ 279   1        else  //zoom
+ 280   1        {
+ 281   2          backup_data = LensDrvSPIReadUint( LENSDRV_ZOOM_STEPS_REG );
+ 282   2          backup_data &=0x0400;//0xFE00
+ 283   2          if ( dir == 1) //·´×ª
+ 284   2          {  
+ 285   3              //Add directiion bit (CCWCWAB) to registor:0x29
+ 286   3            backup_data |=0x0100;
+ 287   3            LensDrvSPIWriteUint( LENSDRV_ZOOM_STEPS_REG,backup_data);
+ 288   3          } 
+ 289   2          else
+ 290   2          {
+ 291   3            LensDrvSPIWriteUint( LENSDRV_ZOOM_STEPS_REG,backup_data);
+ 292   3          }   
+ 293   2        }
+ 294   1      
+ 295   1        VD_FZ_Hihg();
+ 296   1        LensdrvDelay20us();
+C51 COMPILER V9.60.0.0   LENSDRV                                                           10/13/2020 20:08:45 PAGE 6   
+
+ 297   1        VD_FZ_Low();
+ 298   1      }
+ 299          
+ 300          
+ 301          /***********************************************************************
+ 302          #ifdef  DOC
+ 303          FUNCTION  : LensDrvFocusMove
+ 304          DESCRIPTION : Focus motor move control
+ 305          INPUT   : dir,FcStep
+ 306          OUTPUT    : none
+ 307          UPDATE    :
+ 308          DATE    : 2011/02/21
+ 309          #endif
+ 310          ***********************************************************************/
+ 311          //after implement this function,there should be VD_FZ pluse. 
+ 312          void LensDrvFocusMove(bit dir, unsigned int FcStep)
+ 313          {
+ 314   1        xdata unsigned int backup_data = 0;
+ 315   1        if ( (FcStep > 0x00FF) || (FcStep < 0x00) ) // more than 255step
+ 316   1        { 
+ 317   2          return;
+ 318   2        }
+ 319   1        
+ 320   1        //LensDrvSPIWriteUint(0x29,0x0000); //±ä±¶µç»ú 0x0000
+ 321   1      
+ 322   1        backup_data = LensDrvSPIReadUint( LENSDRV_FOCUS_STEPS_REG );
+ 323   1        
+ 324   1        backup_data &=  0x0C00; //0xFE00;
+ 325   1        backup_data |= FcStep;
+ 326   1        if ( dir == 1)
+ 327   1        {  
+ 328   2            //Add directiion bit (CCWCWAB) to registor:0x24
+ 329   2          backup_data |=0x0100;
+ 330   2          LensDrvSPIWriteUint( LENSDRV_FOCUS_STEPS_REG,backup_data);
+ 331   2        } 
+ 332   1        else
+ 333   1        {
+ 334   2          LensDrvSPIWriteUint( LENSDRV_FOCUS_STEPS_REG,backup_data);
+ 335   2        }
+ 336   1      #if 1 //output a VD_FZ pluse
+ 337   1        VD_FZ_Hihg();
+ 338   1        LensdrvDelay20us();
+ 339   1        VD_FZ_Low();
+ 340   1      #endif 
+ 341   1      }
+ 342          
+ 343          /***********************************************************************
+ 344          #ifdef  DOC
+ 345          FUNCTION  : LenDrvZoomMove
+ 346          DESCRIPTION : Zoom motor move control
+ 347          INPUT   : dir,ZoomStep
+ 348          OUTPUT    : none
+ 349          UPDATE    :
+ 350          DATE    : 2011/02/21
+ 351          #endif
+ 352          ***********************************************************************/
+ 353          //after implement this function,there should be VD_FZ pluse. 
+ 354          void LensDrvZoomMove( bit dir, unsigned int  ZoomStep)   
+ 355          {//                        1                   53
+ 356   1        xdata unsigned int backup_data = 0;
+ 357   1        if (( ZoomStep > 0x00FF) || ( ZoomStep < 0x00)) // more than 255step
+ 358   1        { 
+C51 COMPILER V9.60.0.0   LENSDRV                                                           10/13/2020 20:08:45 PAGE 7   
+
+ 359   2          return;
+ 360   2        }
+ 361   1      
+ 362   1        LensDrvSPIWriteUint(0x24,0x0000); //¾Û½¹µç»ú 0x0000
+ 363   1      
+ 364   1        backup_data = LensDrvSPIReadUint( LENSDRV_ZOOM_STEPS_REG );                                         //( LENSDRV_ZOOM_STEPS_RE
+             -G== 0x29) (¶¨ÒåCDµç»úËõ·Å) 69
+ 365   1        backup_data &=0x0400;//0xFE00                                                                       &È«¡®1¡¯Îª1£¬·´Ö®Îª¡®0¡¯
+ 366   1        //backup_data |=0x3000;//¸Ä±äÏ¸·ÖÊý£¬Ï¸·Ö¸ÄÎª64Ï¸·Ö 11 -- 64, 10 -- 128, 00 -- 256
+ 367   1        backup_data |=ZoomStep;
+ 368   1        if ( dir == 1) //·´×ª
+ 369   1        {  
+ 370   2            //Add directiion bit (CCWCWAB) to registor:0x29
+ 371   2          backup_data |=0x0100;
+ 372   2          LensDrvSPIWriteUint( LENSDRV_ZOOM_STEPS_REG,backup_data);
+ 373   2        }
+ 374   1        else
+ 375   1        {
+ 376   2          LensDrvSPIWriteUint( LENSDRV_ZOOM_STEPS_REG,backup_data);
+ 377   2        }
+ 378   1      #if 1 //output a VD_FZ pluse
+ 379   1        VD_FZ_Hihg();
+ 380   1        LensdrvDelay20us();
+ 381   1        VD_FZ_Low();
+ 382   1      #endif 
+ 383   1      }
+ 384          
+ 385          
+ 386          void LensDrvFocusStop(void)
+ 387          {
+ 388   1        LensDrvSPIWriteUint(0x24,0x0400);
+ 389   1      }
+ 390          
+ 391          
+ 392          void LensDrvZoomStop(void)
+ 393          {
+ 394   1        LensDrvSPIWriteUint(0x29,0x0400);
+ 395   1      }
+ 396          
+ 397          
+ 398          /****************************************************************************
+ 399          * Ãû    ³Æ£ºvoid LensDrvIrisOpen(void)
+ 400          * ¹¦    ÄÜ£º´ò¿ª¹âÈ¦
+ 401          * Èë¿Ú²ÎÊý: ÎÞ
+ 402          * ³ö¿Ú²ÎÊý£ºÎÞ
+ 403          * Ëµ    Ã÷£º
+ 404          * µ÷ÓÃ·½·¨£º
+ 405          ****************************************************************************/ 
+ 406          void LensDrvIrisOpen(void) 
+ 407          {
+ 408   1        unsigned int IrsTGT = 0;
+ 409   1        
+ 410   1        for(IrsTGT = 0x03FF; IrsTGT > 0; IrsTGT--){
+ 411   2          LensDrvIrisMove(IrsTGT);
+ 412   2        }
+ 413   1        
+ 414   1        LensDrvIrisMove(0x0000);
+ 415   1      }
+ 416          
+ 417          /****************************************************************************
+ 418          * Ãû    ³Æ£ºvoid LensDrvFocusSpeed(void)
+ 419          * ¹¦    ÄÜ£º½¹¾àµç»úËÙ¶Èµ÷Õû
+C51 COMPILER V9.60.0.0   LENSDRV                                                           10/13/2020 20:08:45 PAGE 8   
+
+ 420          * Èë¿Ú²ÎÊý: ÎÞ
+ 421          * ³ö¿Ú²ÎÊý£ºÎÞ
+ 422          * Ëµ    Ã÷£º
+ 423          * µ÷ÓÃ·½·¨£º
+ 424          ****************************************************************************/ 
+ 425          void LensDrvFocusSpeed(unsigned int FcSpeed)
+ 426          {
+ 427   1        //0xFFFF ×îÂý
+ 428   1        //Ä¬ÈÏ 0x0160
+ 429   1        LensDrvSPIWriteUint(0x25,FcSpeed);
+ 430   1      }
+ 431          
+ 432          
+ 433          /****************************************************************************
+ 434          * Ãû    ³Æ£ºvoid LensDrvFocusSpeed(void)
+ 435          * ¹¦    ÄÜ£º±ä±¶µç»úËÙ¶Èµ÷Õû
+ 436          * Èë¿Ú²ÎÊý: ÎÞ
+ 437          * ³ö¿Ú²ÎÊý£ºÎÞ
+ 438          * Ëµ    Ã÷£º
+ 439          * µ÷ÓÃ·½·¨£º
+ 440          ****************************************************************************/ 
+ 441          void LensDrvZoomSpeed(unsigned int ZoomSpeed)
+ 442          {
+ 443   1        //0xFFFF ×îÂý
+ 444   1        //Ä¬ÈÏ 0x0160
+ 445   1        LensDrvSPIWriteUint(0x2A,ZoomSpeed);
+ 446   1      }
+ 447          
+ 448          
+ 449          
+ 450          
+ 451          void MS_Rest(void)
+ 452          {
+ 453   1        VD_IS_Hihg();
+ 454   1        _nop_();_nop_();_nop_();_nop_();
+ 455   1        _nop_();_nop_();_nop_();_nop_();
+ 456   1        _nop_();_nop_();_nop_();_nop_();
+ 457   1        _nop_();_nop_();_nop_();_nop_();
+ 458   1        VD_IS_Low();
+ 459   1        _nop_();_nop_();_nop_();_nop_();
+ 460   1        _nop_();_nop_();_nop_();_nop_();
+ 461   1        _nop_();_nop_();_nop_();_nop_();
+ 462   1        _nop_();_nop_();_nop_();_nop_();
+ 463   1        VD_IS_Hihg();
+ 464   1      }
+ 465          
+ 466          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    878    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----       7
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----      12
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----       3
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  2 WARNING(S),  0 ERROR(S)

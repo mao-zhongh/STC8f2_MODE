@@ -1,0 +1,141 @@
+C51 COMPILER V9.60.0.0   SPI                                                               10/13/2020 20:08:46 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE SPI
+OBJECT MODULE PLACED IN .\Objects\spi.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE spi.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\spi.l
+                    -st) TABS(2) OBJECT(.\Objects\spi.obj)
+
+line level    source
+
+   1          
+   2          
+   3          #include <intrins.h>
+   4          #include "spi.h"
+   5          
+   6          
+   7          unsigned char SPI_RecData=0;
+   8          unsigned char SPI_Buffer=0;
+   9          
+  10          void Delay(int b)
+  11          { 
+  12   1        int a;
+  13   1        for(a=0;a<b;a++)
+  14   1         for(a=0;a<b;a++);  
+  15   1      }
+  16          
+  17          
+  18          void Delay20us()    //@24.000MHz
+  19          {
+  20   1        unsigned char i;
+  21   1      
+  22   1        i = 158;
+  23   1        while (--i);
+  24   1      }
+  25          
+  26          
+  27          void SPI_Isr() interrupt 9 using 1
+  28          {
+  29   1          SPSTAT = 0xc0;                              //?????                                //????
+  30   1          SPI_Buffer = SPDAT;
+  31   1      }
+  32          
+  33          
+  34          void SPI_Init(void)
+  35          {
+  36   1          P_SW1 = 0x04;
+  37   1          SPCTL = 0xfc;//0x50;          
+  38   1          /*
+  39   1          使能 SPI 功能
+  40   1          先发送/接收数据的低位（LSB）
+  41   1          
+  42   1          */
+  43   1          SPSTAT = 0xc0;    //清中断 、 写冲突 标志                         
+  44   1          SPDAT = 0;        //数据寄存器清0
+  45   1          CS_Low();
+  46   1      }
+  47          
+  48          
+  49          /*******************************************************************************
+  50          * Function Name  : SPI_FLASH_SendByte
+  51          * Description    : Sends a byte through the SPI interface and return the byte 
+  52          *                  received from the SPI bus.
+  53          * Input          : byte : byte to send.
+  54          * Output         : None
+C51 COMPILER V9.60.0.0   SPI                                                               10/13/2020 20:08:46 PAGE 2   
+
+  55          * Return         : The value of the received byte.
+  56          *******************************************************************************/
+  57          unsigned char SPI_SendByte(unsigned char byte)
+  58          {
+  59   1        SPDAT = byte;                                  //将数据装入SPI数据寄存器
+  60   1        while((SPSTAT&0x80)==0); //等待发送完毕
+  61   1        SPSTAT = 0xc0;                                 //清除中断标志，清除写冲突标志,注意是对应位写1才能清零 
+  62   1        SPI_RecData = SPDAT;
+  63   1      
+  64   1        return SPI_RecData;
+  65   1      }
+  66          
+  67          
+  68          
+  69          
+  70          void SPI_RecvByte(unsigned char *byte)
+  71          {
+  72   1        while((SPSTAT&0x80)==0); //等待发送完毕
+  73   1        SPSTAT = 0xc0;   /* 清除中断标志 和 写冲突标志,注意是对应位写1才能清零 */
+  74   1        *byte = SPDAT;
+  75   1      }
+  76          
+  77          
+  78          /*发送数据*/
+  79          void Spi_Write(unsigned char addr, unsigned int data_)
+  80          { 
+  81   1        CS_Hihg();
+  82   1        SPI_SendByte(addr);
+  83   1        SPI_SendByte (data_%256);
+  84   1        SPI_SendByte(data_/256);
+  85   1        CS_Low();
+  86   1      }
+  87          
+  88          
+  89          
+  90          /*接收数据*/
+  91          unsigned int Spi_Read(unsigned char addr)
+  92          {
+  93   1        unsigned char ret = 0, ret1 = 0, ret2 = 0;
+  94   1        CS_Hihg();  //片选
+  95   1        SPI_SendByte(addr+0x40);
+  96   1        SPI_RecvByte(&ret1);
+  97   1        SPI_RecvByte(&ret2);
+  98   1        CS_Low();
+  99   1        return (ret2*0x100+ret1);
+ 100   1      }
+ 101          
+ 102          
+ 103          void SPI_Speed(unsigned char speed)     //SPI时钟频率选择
+ 104          {
+ 105   1        switch(speed)
+ 106   1        {
+ 107   2          case 0: SPCTL &= 0xFC;break;                    //SYSclk/4
+ 108   2          case 1: SPCTL &= 0xFC; SPCTL |= 0x01; break;    //SYSclk/8
+ 109   2          case 2: SPCTL &= 0xFC; SPCTL |= 0x02; break;    //SYSclk/16
+ 110   2          case 3: SPCTL &= 0xFC; SPCTL |= 0x03; break;    //SYSclk/32
+ 111   2        }
+ 112   1      }
+ 113          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+C51 COMPILER V9.60.0.0   SPI                                                               10/13/2020 20:08:46 PAGE 3   
+
+   CODE SIZE        =    208    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      2       3
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

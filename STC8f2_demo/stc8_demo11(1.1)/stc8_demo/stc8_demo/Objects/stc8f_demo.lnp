@@ -1,0 +1,10 @@
+".\Objects\STARTUP.obj",
+".\Objects\Lensdrv.obj",
+".\Objects\main.obj",
+".\Objects\spi.obj",
+".\Objects\timer.obj",
+".\Objects\uart.obj",
+".\Objects\EEPROM.obj" 
+TO ".\Objects\stc8f_demo" 
+PRINT(".\Listings\stc8f_demo.m51") RAMSIZE(256) 
+CODE( 0X0000-0XFFF8 )
